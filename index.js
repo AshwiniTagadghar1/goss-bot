@@ -22,7 +22,7 @@ app.use(express.json());
 app.post("/viber/webhook", async (req, res) => {
   //  console.log('req content is here:', req.body);
   // console.log('res content is here:', res);
-  const { event, user, sender, message } = req.body;
+  const { event, user, sender, message, user_id } = req.body;
   //   console.log(user_id);
 
   // this event gets triggered when a new user has just opened chat link
@@ -71,6 +71,7 @@ app.post("/viber/webhook", async (req, res) => {
   // this event gets triggered when a user unsubscribes from the bot
   else if (event === "unsubscribed") {
     // Perform some action, such as removing the user from the database
+    console.log(user_id,'has unregistered!');
 
   } else if (req.headers["x-github-event"] === "pull_request") {
     handlePullRequestEvent(req.body);
