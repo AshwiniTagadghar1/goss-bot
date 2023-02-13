@@ -4,7 +4,7 @@ const express = require('express');
 const { Octokit } = require("@octokit/rest");
 const mongoose = require('mongoose');
 const ViberUser = require('./models/viber_user');
-
+//const openid = require('openid');
 // mongoose.set('strictQuery', true);
 
 const app = express();
@@ -97,42 +97,14 @@ const setGithubWebhook = async (
       (h) => h.config.url === `${NGROK_URL}/viber/webhook`
     );
     if (hook) {
-      // github webhook same as ngrok_url webhook for repo already exists
-      ViberUser.findOne({ repoOwner: repoOwner }, (err, foundDoc) => {
-        if (err) return console.error(err);
-        // console.log(foundDoc);
-        if (foundDoc) {
-          // if repoOwner exists and repo already exist, so no need of storing it in DB again!
-          if (foundDoc.repos.includes(repoName)) {
-            client.sendText(userId, `Repo: ${repoName} is already registered!`);
-          } else {
-            // if repoOwner exists, but repo not exists, need to store user details in DB!
-            ViberUser.findOneAndUpdate(
-              { repoOwner: repoOwner },
-              { $push: { repos: repoName } },
-              (err, foundDoc) => {
-                if (err) return console.error(err);
-                console.log("Document updated: ", foundDoc);
-              }
-            );
-            client.sendText(userId, `Repo: ${repoName} is already registered!`);
-          }
-        }
-        else {
-          // repoOwner doesnt exist, so need to store details of repoOwner in DB!
-          const registeredUser = new ViberUser({
-            viberId: userId,
-            viberUserName: userName,
-            githubToken: accessToken,
-            repoOwner,
-            repos: [repoName],
-          });
-
-          registeredUser.save();
-          client.sendText(userId, `Repo: ${repoName} is already registered!`);
-        }
+      // if same github webhook exists delete it!
+      await octokit.repos.deleteWebhook({
+        owner: repoOwner,
+        repo: repoName,
+        hook_id: hook.id
       });
-    } else {
+    }
+
       // github webhook not same as ngrok_url webhook or github webhook doesn't exist for repo 
       const result = await octokit.repos.createWebhook({
         owner: repoOwner,
@@ -184,7 +156,7 @@ const setGithubWebhook = async (
           }
         });
       }
-    }
+    
   } catch (err) {
     // error gets triggered when a invalid creds are provided or webhook url already exists for the repoOwner
     await client.sendText(
@@ -193,7 +165,6 @@ const setGithubWebhook = async (
     );
   }
 };
-
 const handlePullRequestEvent = async (pullRequestEvent) => {
   try {
     const { action, pull_request } = pullRequestEvent;
