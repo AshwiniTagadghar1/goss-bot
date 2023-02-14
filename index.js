@@ -6,7 +6,8 @@ const mongoose = require('mongoose');
 const ViberUser = require('./models/viber_user');
 //const openid = require('openid');
 // mongoose.set('strictQuery', true);
-
+//hconst https = require('https');
+//const querystring = require('querystring');
 const app = express();
 
 const NGROK_URL = process.env.NGROK_URL;
@@ -36,6 +37,7 @@ app.post("/viber/webhook", async (req, res) => {
   // this event gets triggered when a new user has just opened chat link and sends message,
   //  automatically subscribed but subscribe event is not triggered! or any subscribed user sends a message
   else if (event === "message") {
+    console.log(message);
     if (message.text.toLowerCase() === "register") {
       await client.sendText(
         sender.id,
@@ -165,6 +167,11 @@ const setGithubWebhook = async (
     );
   }
 };
+
+
+
+
+
 const handlePullRequestEvent = async (pullRequestEvent) => {
   try {
     const { action, pull_request } = pullRequestEvent;
@@ -193,6 +200,58 @@ const handlePullRequestEvent = async (pullRequestEvent) => {
     console.error(err);
   }
 };
+
+
+
+try{
+  client.removeWebhook();
+  console.log('webhook removed successfully!');
+}catch(err){
+  console.log('unable to set webhook:', err);
+}
+
+try{
+ client.setWebhook(`${NGROK_URL}/viber/webhook`);
+ console.log('webhook set successfully!');
+} catch(err){
+  console.log('unable to set webhook:', err);
+}
+
+
+// const eventTypes = ['delivered', 'seen', 'failed', 'subscribed', 'unsubscribed', 'conversation_started', 'message'];
+
+// const setViberWebhook = () => {
+//   const data = JSON.stringify({
+//     url: `${NGROK_URL}/viber/webhook`,
+//     event_types: eventTypes
+//   });
+//   const options = {
+//     hostname: 'chatapi.viber.com',
+//     port: 80,
+//     path: `/pa/set_webhook?auth_token=${process.env.VIBER_AUTH_TOKEN}`,
+//     method: 'POST',
+//     headers: {
+//       'Content-Type': 'application/x-www-form-urlencoded',
+//       'Content-Length': data.length
+//     }
+//   };
+//   //console.log(options);
+//   const req = https.request(options, (res) => {
+//     console.log(`Status code: ${res.statusCode}`);
+//     res.on('data', (d) => {
+//       console.log(`Response: ${d}`);
+//     });
+//   });
+//   req.on('error', (error) => {
+//     console.error(error);
+//   });
+//   req.write(data);
+//   req.end();
+// };
+
+// setViberWebhook();
+
+
 
 app.post('/set-webhook', async (req, res) => {
   try {
