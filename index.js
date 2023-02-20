@@ -87,7 +87,7 @@ app.get('/login', (req, res) => {
 
 app.post("/viber/webhook", async (req, res) => {
   //  console.log('req content is here:', req.body);
-  // console.log('res content is here:', res);
+//   console.log('res content is here:', req.headers);
   const { event, user, sender, message, user_id } = req.body;
 
   // this event gets triggered when a new user has just opened chat link or click on 'receive message' on 3 dots menu in chat
