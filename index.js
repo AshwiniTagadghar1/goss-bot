@@ -29,7 +29,7 @@ app.use(
     },
     authorizationParams: {
       response_type: "code",
-      prompt: "consent",
+      // prompt: "consent",
     },
   })
 );
@@ -54,16 +54,15 @@ const client = new ViberClient({
 app.use(express.json());
 
 app.get("/", async (req, res) => {
+
+  let msgAuth;
   try {
-    let msgAuth;
     if (req.oidc.isAuthenticated()) {
-      const senderId = req.query.senderId;
+
+      const senderId = decodeURIComponent(req.query.senderId);
       // console.log("senderId:", senderId);
       const expires_in = req.oidc.accessToken.expires_in;
       // console.log(expires_in);
-
-      msgAuth =
-        "You have logged in! Please close this tab and proceed to the chatbot!";
 
       UserAuth.findOne({ viberId: senderId }, (err, foundDoc) => {
         if (err) return console.error(err);
@@ -106,51 +105,52 @@ app.get("/", async (req, res) => {
           console.log("token created");
         }
       });
+      msgAuth = "You have logged in! Please close this tab and proceed to the chatbot!";
     } else {
       msgAuth = "Please login again using login link provide by the chatbot";
     }
   } catch (err) {
     console.log(err);
   }
-
   res.send(msgAuth);
 });
 
 app.get("/login", (req, res) => {
-  console.log(req.headers);
-  const senderId = req.query.senderId;
+  const senderId = decodeURIComponent(req.query.senderId);
+  const encodedId = encodeURIComponent(senderId);
+
   res.oidc.login({
-    returnTo: `/?senderId=${senderId}`,
+    returnTo: `/?senderId=${encodedId}`,
     authorizationParams: {
       redirect_uri: `${NGROK_URL}/callback`,
     },
   });
-  console.log(req.headers);
 });
 
 app.post("/viber/webhook", async (req, res) => {
-  //  console.log('req content is here:', req.body);
-  //console.log('res content is here:', req.headers);
-  const { event, user, sender,message, user_id } = req.body;
-  let viberUserId, viberUserName, authenticationUrl;
+
+  const { event, user, sender, message, user_id } = req.body;
+  let viberUserId, viberUserName, authenticationUrl, encodedId;
 
   if (event === "conversation_started" || event === "subscribed") {
     try {
       viberUserId = user.id;
       viberUserName = user.name;
-      authenticationUrl = `${NGROK_URL}/login?senderId=${viberUserId}`;
+      encodedId = encodeURIComponent(viberUserId);
+      authenticationUrl = `${NGROK_URL}/login?senderId=${encodedId}`;
       await authHandler(viberUserId, viberUserName, event, message, authenticationUrl);
     } catch (err) {
-      console.log(err);
+      console.log('err from conv start or sub: ', err);
     }
   } else if (event === "message") {
     try {
       viberUserId = sender.id;
       viberUserName = sender.name;
-      authenticationUrl = `${NGROK_URL}/login?senderId=${viberUserId}`;
+      encodedId = encodeURIComponent(viberUserId);
+      authenticationUrl = `${NGROK_URL}/login?senderId=${encodedId}`;
       await authHandler(viberUserId, viberUserName, event, message, authenticationUrl);
     } catch (err) {
-      console.log(err);
+      console.log('err from msg: ', err);
     }
   } else if (event === "unsubscribed") {
     // Perform some action, such as removing the user from the database
@@ -159,7 +159,7 @@ app.post("/viber/webhook", async (req, res) => {
     try {
       await handlePullRequestEvent(req.body);
     } catch (err) {
-      console.log(err);
+      console.log('err in handling github pull_request events: ', err);
     }
   }
   res.sendStatus(200);
@@ -175,7 +175,6 @@ const authHandler = async (
   try {
     await UserAuth.findOne({ viberId: viberUserId }, (err, userExist) => {
       if (err) return console.error(err);
-      // console.log(foundDoc);
       if (userExist) {
         // validating through token expiry
         const expires_in = userExist.token_expires_in;
@@ -187,10 +186,10 @@ const authHandler = async (
 
         if (isExpired) {
           // user has to reauthenticate, and update user_auth in db!
-          UserAuth.findOneAndUpdate({ viberId: viberUserId }, { $set: { is_expired: true }}, { new: true }, (err, updatedDoc) => {
-              if (err) return console.error(err);
-              console.log("Document updated: ", updatedDoc);
-            });
+          UserAuth.findOneAndUpdate({ viberId: viberUserId }, { $set: { is_expired: true } }, { new: true }, (err, updatedDoc) => {
+            if (err) return console.error(err);
+            console.log("Document updated: ", updatedDoc);
+          });
 
           client.sendText(
             user.id,
@@ -218,31 +217,32 @@ const authHandler = async (
               } catch (err) {
                 console.log(err);
               }
-            }
-          } else if (message.text.toLowerCase().startsWith("details")) {
-            const accessToken = message.text.split(" ")[1];
-            const repoOwner = message.text.split(" ")[2];
-            const repoName = message.text.split(" ")[3];
-            try {
-              setGithubWebhook(
-                viberUserId,
-                viberUserName,
-                accessToken,
-                repoOwner,
-                repoName
-              );
-            } catch (err) {
-              console.log(err);
-            }
-          } else {
-            // echo user
-            try {
-              client.sendText(
-                sender.id,
-                `Hello ${sender.name}, you said: ${message.text}`
-              );
-            } catch (err) {
-              console.log(err);
+            } else if (message.text.toLowerCase().startsWith("details")) {
+
+              const accessToken = message.text.split(" ")[1];
+              const repoOwner = message.text.split(" ")[2];
+              const repoName = message.text.split(" ")[3];
+              try {
+                setGithubWebhook(
+                  viberUserId,
+                  viberUserName,
+                  accessToken,
+                  repoOwner,
+                  repoName
+                );
+              } catch (err) {
+                console.log(err);
+              }
+            } else {
+              // echo user
+              try {
+                client.sendText(
+                  viberUserId,
+                  `Hello ${viberUserName}, you said: ${message.text}`
+                );
+              } catch (err) {
+                console.log(err);
+              }
             }
           }
         }
